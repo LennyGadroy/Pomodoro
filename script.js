@@ -464,3 +464,15 @@ function renderHeatmap() {
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 init();
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then((registration) => {
+        console.log('ServiceWorker enregistré avec succès avec le scope: ', registration.scope);
+      })
+      .catch((error) => {
+        console.log('Échec de l\'enregistrement du ServiceWorker: ', error);
+      });
+  });
+}
