@@ -1,12 +1,15 @@
 {
-  "name": "Tomatodoro",
-  "short_name": "Tomatodoro",
-  "description": "Un minuteur Pomodoro simple et efficace avec gestion des tâches.",
+  "name": "Pomodo — Focus Timer",
+  "short_name": "Pomodo",
+  "description": "Timer Pomodoro avec gestion des tâches, streaks et rapports",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#F5F5F7",
   "theme_color": "#E5534B",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
+  "lang": "fr",
+  "categories": ["productivity", "utilities"],
   "icons": [
     {
       "src": "assets/icon-192.png",
@@ -32,5 +35,23 @@
       "type": "image/png",
       "purpose": "any"
     }
-  ]
+  ],
+  "shortcuts": [
+    {
+      "name": "Démarrer le timer",
+      "short_name": "Timer",
+      "description": "Ouvre directement le timer Pomodoro",
+      "url": "./index.html#timer",
+      "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Mes tâches",
+      "short_name": "Tâches",
+      "description": "Ouvre la liste des tâches",
+      "url": "./index.html#tasks",
+      "icons": [{ "src": "icons/icon-96x96.png", "sizes": "96x96" }]
+    }
+  ],
+  "screenshots": [],
+  "prefer_related_applications": false
 }

@@ -56,7 +56,6 @@ function showRaw(id) {
     s.classList.add('hidden');
     s.classList.remove('slide-left');
   });
-
   const el = document.getElementById(id);
   if (el) el.classList.remove('hidden');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -94,9 +93,7 @@ function nextSlide() {
     if (obSlide === slides.length - 1) {
       document.getElementById('ob-btn').innerHTML = 'Commencer <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="18" height="18"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
     }
-  } else {
-    finishOnboarding();
-  }
+  } else {finishOnboarding();}
 }
 
 function finishOnboarding() {
@@ -146,33 +143,7 @@ function tick() {
     clearInterval(timerInterval); timerInterval = null;
     state.timer.running = false;
     updatePlayIcon(false);
-    if (state.timer.mode === 'focus') {
-      state.timer.sessions++;
-      state.timer.totalSessions++;
-      state.timer.totalMinutes += state.timer.durations.focus;
-
-      const today = new Date().toISOString().split('T')[0];
-      state.history[today] = (state.history[today] || 0) + 1;
-
-      const yesterday = new Date(Date.now()-86400000).toISOString().split('T')[0];
-      if (state.timer.lastDate === today) {}
-      else if (state.timer.lastDate === yesterday) { state.timer.streakDays++; }
-      else { state.timer.streakDays = 1; }
-      state.timer.lastDate = today;
-      renderStreakDots();
-      renderSessionCount();
-      updateSessionIndicator();
-      if (state.timer.sound) playBeep();
-
-      const mode = state.timer.sessions % 4 === 0 ? 'long' : 'short';
-      const btn = document.getElementById('tab-'+mode);
-      switchMode(mode, btn);
-    } else {
-      if (state.timer.sound) playBeep();
-      const btn = document.getElementById('tab-focus');
-      switchMode('focus', btn);
-    }
-    save();
+    handleSessionEnd();
     return;
   }
   state.timer.timeLeft--;
@@ -447,7 +418,6 @@ function renderHeatmap() {
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month+1, 0).getDate();
   const offset = (firstDay + 6) % 7;
-
   let cells = Array(offset).fill(null);
   for (let d = 1; d <= daysInMonth; d++) {
     const key = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -463,16 +433,186 @@ function renderHeatmap() {
 
 function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-init();
+
+let deferredInstallPrompt = null;
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
-      .then((registration) => {
-        console.log('ServiceWorker enregistré avec succès avec le scope: ', registration.scope);
+      .then(reg => {
+        console.log('[SW] Registered, scope:', reg.scope);
+
+        reg.addEventListener('updatefound', () => {
+          const newSW = reg.installing;
+          newSW.addEventListener('statechange', () => {
+            if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+              showUpdateToast();
+            }
+          });
+        });
       })
-      .catch((error) => {
-        console.log('Échec de l\'enregistrement du ServiceWorker: ', error);
-      });
+      .catch(err => console.warn('[SW] Registration failed:', err));
   });
 }
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+
+  const dismissed = localStorage.getItem('pomodo_install_dismissed');
+  if (!dismissed) {
+    setTimeout(() => document.getElementById('install-banner').classList.add('visible'), 3000);
+  }
+});
+
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  document.getElementById('install-banner').classList.remove('visible');
+  showToast('✅ Pomodo installé avec succès !', 3000);
+});
+
+function installApp() {
+  if (!deferredInstallPrompt) {
+    showToast('Pour installer : Menu ⋮ → "Ajouter à l\'écran d\'accueil"', 4000);
+    dismissInstall(); return;
+  }
+  deferredInstallPrompt.prompt();
+  deferredInstallPrompt.userChoice.then(choice => {
+    if (choice.outcome === 'accepted') {
+      document.getElementById('install-banner').classList.remove('visible');
+    }
+    deferredInstallPrompt = null;
+  });
+}
+
+function dismissInstall() {
+  document.getElementById('install-banner').classList.remove('visible');
+  localStorage.setItem('pomodo_install_dismissed', '1');
+}
+
+function updateOnlineStatus() {
+  const online = navigator.onLine;
+  const toast = document.getElementById('offline-toast');
+  const dot = document.getElementById('toast-dot');
+  const msg = document.getElementById('toast-msg');
+  if (!online) {
+    dot.classList.remove('online');
+    msg.textContent = 'Hors ligne — données sauvegardées localement';
+    toast.classList.add('visible');
+  } else {
+    dot.classList.add('online');
+    msg.textContent = 'Connexion rétablie';
+    toast.classList.add('visible');
+    setTimeout(() => toast.classList.remove('visible'), 2500);
+  }
+}
+window.addEventListener('online',  updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
+function showToast(text, duration = 2500) {
+  const toast = document.getElementById('offline-toast');
+  const dot = document.getElementById('toast-dot');
+  const msg = document.getElementById('toast-msg');
+  dot.classList.add('online');
+  msg.textContent = text;
+  toast.classList.add('visible');
+  setTimeout(() => toast.classList.remove('visible'), duration);
+}
+
+function showUpdateToast() {
+  showToast('🆕 Mise à jour disponible — rechargez la page', 6000);
+}
+
+function checkNotifPermission() {
+  if (!('Notification' in window)) return;
+  const prompt = document.getElementById('notif-prompt');
+  if (Notification.permission === 'default') {
+    if (state.timer.totalSessions >= 1) {
+      prompt.classList.remove('hidden');
+    }
+  }
+}
+
+function requestNotifPermission() {
+  if (!('Notification' in window)) return;
+  Notification.requestPermission().then(perm => {
+    document.getElementById('notif-prompt').classList.add('hidden');
+    if (perm === 'granted') {
+      showToast('🔔 Notifications activées !');
+    }
+  });
+}
+
+function sendNotification(title, body) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  try {
+    new Notification(title, {
+      body,
+      icon: './icons/icon-192x192.png',
+      badge: './icons/icon-72x72.png',
+      vibrate: [200, 100, 200],
+      silent: false
+    });
+  } catch(e) {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.showNotification(title, {
+          body,
+          icon: './icons/icon-192x192.png',
+          badge: './icons/icon-72x72.png',
+          vibrate: [200, 100, 200]
+        });
+      });
+    }
+  }
+}
+
+let hiddenAt = null;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    hiddenAt = state.timer.running ? Date.now() : null;
+  } else if (hiddenAt && state.timer.running) {
+    const elapsed = Math.floor((Date.now() - hiddenAt) / 1000);
+    hiddenAt = null;
+    if (elapsed > 0) {
+      state.timer.timeLeft = Math.max(0, state.timer.timeLeft - elapsed);
+      updateTimerDisplay();
+      if (state.timer.timeLeft === 0) {
+        clearInterval(timerInterval); timerInterval = null;
+        state.timer.running = false;
+        updatePlayIcon(false);
+        handleSessionEnd();
+      }
+    }
+  }
+});
+
+function handleSessionEnd() {
+  if (state.timer.mode === 'focus') {
+    state.timer.sessions++;
+    state.timer.totalSessions++;
+    state.timer.totalMinutes += state.timer.durations.focus;
+    const today = new Date().toISOString().split('T')[0];
+    state.history[today] = (state.history[today] || 0) + 1;
+    const yesterday = new Date(Date.now()-86400000).toISOString().split('T')[0];
+    if (state.timer.lastDate === today) {}
+    else if (state.timer.lastDate === yesterday) { state.timer.streakDays++; }
+    else { state.timer.streakDays = 1; }
+    state.timer.lastDate = today;
+    renderStreakDots();
+    renderSessionCount();
+    if (state.timer.sound) playBeep();
+    sendNotification('🍅 Session terminée !', `Bravo ! Prends une pause bien méritée. ${state.timer.sessions} session(s) aujourd'hui.`);
+    checkNotifPermission();
+    const mode = state.timer.sessions % 4 === 0 ? 'long' : 'short';
+    switchMode(mode, document.getElementById('tab-'+mode));
+  } else {
+    if (state.timer.sound) playBeep();
+    sendNotification('☕ Pause terminée !', 'Prêt pour une nouvelle session focus ?');
+    switchMode('focus', document.getElementById('tab-focus'));
+  }
+  save();
+}
+
+init();
+checkNotifPermission();
