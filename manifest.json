@@ -1,6 +1,6 @@
 {
-  "name": "Pomodo — Focus Timer",
-  "short_name": "Pomodo",
+  "name": "Seed — Pomodoro Timer & Task Manager",
+  "short_name": "Seed",
   "description": "Timer Pomodoro avec gestion des tâches, streaks et rapports",
   "start_url": "./index.html",
   "scope": "./",
